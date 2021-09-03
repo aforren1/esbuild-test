@@ -11,7 +11,7 @@ var Extend = require('../node_modules/phaser/src/utils/object/Extend')
 // after https://github.com/photonstorm/phaser/commit/ec5f3d3a33e786094652c3183428e984a395f100
 // the RAF time gives us something closer to VSYNC time
 var Core = require('../node_modules/phaser/src/core')
-var ts = function (time) {
+var ts = function(time) {
 
   //  Because the timestamp passed in from raf represents the beginning of the main thread frame that we’re currently in,
   //  not the actual time now, and as we want to compare this time value against Event timeStamps and the like, we need a
@@ -25,16 +25,16 @@ var ts = function (time) {
 
   }
   this.rawDelta = before
-  let idx = this.deltaIndex,
-    history = this.deltaHistory,
-    max = this.deltaSmoothingMax,
-    //  delta time (time is in ms)
-    dt = before,
-    //  Delta Average
-    avg = before
-    //  When a browser switches tab, then comes back again, it takes around 10 frames before
-    //  the delta time settles down so we employ a 'cooling down' period before we start
-    //  trusting the delta values again, to avoid spikes flooding through our delta average
+  let idx = this.deltaIndex
+  let history = this.deltaHistory
+  let max = this.deltaSmoothingMax
+  //  delta time (time is in ms)
+  let dt = before
+  //  Delta Average
+  let avg = before
+  //  When a browser switches tab, then comes back again, it takes around 10 frames before
+  //  the delta time settles down so we employ a 'cooling down' period before we start
+  //  trusting the delta values again, to avoid spikes flooding through our delta average
   if (this.smoothStep) {
 
     if (this._coolDown > 0 || !this.inFocus) {
@@ -130,7 +130,7 @@ var ts = function (time) {
 }
 
 Core.TimeStep.prototype.step = ts
-Core.TimeStep.prototype.tick = function () {
+Core.TimeStep.prototype.tick = function() {
 
   this.step(window.performance.now())
 
