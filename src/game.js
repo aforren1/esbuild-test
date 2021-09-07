@@ -100,16 +100,4 @@ export function onBeforeUnload(event) {
   return 'experiment not done yet.'
 
 }
-// TODO: add back after iterating
-// window.addEventListener('beforeunload', onBeforeUnload)
-
-// if prematurely ended, shuffle logs away?
-// we'll at least store a local time to get an idea if they're
-// refreshing
-// window.addEventListener('unload', (event) => {})
-
-// breaks on IE, so dump if that's really a big deal
-// Might be able to polyfill our way out, too?
-// window.addEventListener('devtoolschange', (event) => {
-//   log.warn(`Devtools opened: ${event.detail.isOpen} at time ${window.performance.now()}`)
-// })
+!DEBUG && window.addEventListener('beforeunload', onBeforeUnload)

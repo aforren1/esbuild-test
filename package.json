@@ -3,8 +3,9 @@
     "version": "0.0.1",
     "description": "Phaser 3 + ESBuild + ES6 Template Project",
     "scripts": {
-        "dev": "esbuild src/game.js --outfile=public/bundle.js --target=es6 --servedir=public --bundle",
-        "prod": "esbuild src/game.js --outfile=public/bundle.js --minify --target=es6 --bundle"
+        "dev": "esbuild src/game.js --outfile=public/bundle.js --target=es6 --servedir=public --bundle --define:DEBUG=true",
+        "prod": "esbuild src/game.js --outfile=public/bundle.js --minify --target=es6 --bundle --define:DEBUG=false",
+        "prod-dev": "npm run prod && netlify dev"
     },
     "repository": {
         "type": "git",

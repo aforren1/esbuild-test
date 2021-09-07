@@ -6,4 +6,3 @@ General idea is JS lives in src/, and everything else lives in public/ (so we do
 
 Everything lands in devDependencies because this isn't ending up on npm
 
-
