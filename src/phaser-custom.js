@@ -1,3 +1,4 @@
+
 // https://github.com/photonstorm/phaser3-project-template-custom-build
 var CONST = require('../node_modules/phaser/src/const')
 
@@ -9,20 +10,87 @@ var Extend = require('../node_modules/phaser/src/utils/object/Extend')
 
 // Patch in RAF timestamp
 // after https://github.com/photonstorm/phaser/commit/ec5f3d3a33e786094652c3183428e984a395f100
+// and https://github.com/photonstorm/phaser/commit/4681bb888d574b485ce0ab405031ac6e31f9c437
 // the RAF time gives us something closer to VSYNC time
-var Core = require('../node_modules/phaser/src/core')
-var ts = function(time) {
 
+var dom = require('../node_modules/phaser/src/dom')
+var Class = require('../node_modules/phaser/src/utils/Class')
+var NOOP = require('../node_modules/phaser/src/utils/NOOP')
+
+class RAF {
+  constructor() {
+    console.log('ahh')
+    this.isRunning = false
+    this.callback = NOOP
+    this.tick = 0
+    this.isSetTimeOut = false
+    this.timeOutID = null
+    this.lastTime = 0
+    this.target = 0
+    var _this = this
+
+    this.step = function step(timestamp) {
+      console.log(timestamp)
+      _this.lastTime = _this.tick
+      _this.tick = timestamp
+      _this.callback(timestamp)
+      _this.timeOutID = window.requestAnimationFrame(step)
+    }
+
+    this.stepTimeout = function stepTimeout() {
+      var d = Date.now()
+      var delay = Math.min(Math.max(_this.target * 2 + _this.tick - d, 0), _this.target)
+      _this.lastTime = _this.tick
+      _this.tick = d
+      _this.callback(d)
+      _this.timeOutID = window.setTimeout(stepTimeout, delay)
+    }
+  }
+
+  start(callback, forceSetTimeOut, targetFPS) {
+    if (this.isRunning) {
+      return
+    }
+    this.callback = callback
+    this.isSetTimeOut = forceSetTimeOut
+    this.target = targetFPS
+    this.isRunning = true
+    this.timeOutID = forceSetTimeOut ? window.setTimeout(this.stepTimeout, 0) : window.requestAnimationFrame(this.step)
+  }
+  stop() {
+    this.isRunning = false
+
+    if (this.isSetTimeOut) {
+      clearTimeout(this.timeOutID)
+    } else {
+      window.cancelAnimationFrame(this.timeOutID)
+    }
+  }
+
+  destroy() {
+    this.stop()
+    this.callback = NOOP
+  }
+}
+
+console.log(dom.RequestAnimationFrame.prototype)
+console.log(dom)
+console.log(RAF)
+dom.RequestAnimationFrame.prototype = RAF
+console.log(dom.RequestAnimationFrame.prototype)
+
+var Core = require('../node_modules/phaser/src/core')
+
+var ts = function(time) {
   //  Because the timestamp passed in from raf represents the beginning of the main thread frame that we’re currently in,
   //  not the actual time now, and as we want to compare this time value against Event timeStamps and the like, we need a
   //  more accurate one:
+  console.log('raf: %d', time - window.performance.now())
   this.now = time
   var before = time - this.lastTime
   if (before < 0) {
-
     //  Because, Chrome.
     before = 0
-
   }
   this.rawDelta = before
   let idx = this.deltaIndex
@@ -36,25 +104,19 @@ var ts = function(time) {
   //  the delta time settles down so we employ a 'cooling down' period before we start
   //  trusting the delta values again, to avoid spikes flooding through our delta average
   if (this.smoothStep) {
-
     if (this._coolDown > 0 || !this.inFocus) {
-
       this._coolDown--
 
       dt = Math.min(dt, this._target)
-
     }
 
     if (dt > this._min) {
-
       //  Probably super bad start time or browser tab context loss,
       //  so use the last 'sane' dt value
-
       dt = history[idx]
 
       //  Clamp delta to min (in case history has become corrupted somehow)
       dt = Math.min(dt, this._min)
-
     }
 
     //  Smooth out the delta over the previous X frames
@@ -66,23 +128,18 @@ var ts = function(time) {
     this.deltaIndex++
 
     if (this.deltaIndex > max) {
-
       this.deltaIndex = 0
-
     }
 
     //  Loop the history array, adding the delta values together
     avg = 0
 
     for (let i = 0; i < max; i++) {
-
       avg += history[i]
-
     }
 
     //  Then divide by the array length to get the average delta
     avg /= max
-
   }
 
   //  Set as the world delta value
@@ -112,12 +169,10 @@ var ts = function(time) {
   // because you're asking it to do too much on the device.
 
   if (time > this.nextFpsUpdate) {
-
     //  Compute the new exponential moving average with an alpha of 0.25.
     this.actualFps = 0.25 * this.framesThisSecond + 0.75 * this.actualFps
     this.nextFpsUpdate = time + 1000
     this.framesThisSecond = 0
-
   }
   this.framesThisSecond++
   //  Interpolation - how far between what is expected and where we are?
@@ -126,14 +181,11 @@ var ts = function(time) {
   //  Shift time value over
   this.lastTime = time
   this.frame++
-
 }
 
 Core.TimeStep.prototype.step = ts
 Core.TimeStep.prototype.tick = function() {
-
   this.step(window.performance.now())
-
 }
 
 var Phaser = {
@@ -147,7 +199,7 @@ var Phaser = {
   // Curves: require('../node_modules/phaser/src/curves'),
   Data: require('../node_modules/phaser/src/data'),
   Display: require('../node_modules/phaser/src/display'),
-  DOM: require('../node_modules/phaser/src/dom'),
+  DOM: dom,
   Events: require('../node_modules/phaser/src/events'),
   Game: require('../node_modules/phaser/src/core/Game'),
   GameObjects: require('../node_modules/phaser/src/gameobjects'),

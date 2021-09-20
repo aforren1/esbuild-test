@@ -55,7 +55,7 @@
         "no-multi-spaces": "warn",
         "no-tabs": "warn",
         "no-trailing-spaces": "warn",
-        "padded-blocks": "warn",
+        "padded-blocks": ["error", "never"],
         "semi": [
             "warn",
             "never"

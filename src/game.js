@@ -1,5 +1,5 @@
 import Phaser from './phaser-custom'
-
+import TitleScene from './scenes/titleScene'
 // import 'devtools-detect'
 import UAParser from 'ua-parser-js'
 
@@ -20,7 +20,7 @@ const phaser_config = {
   audio: {
     noAudio: true
   },
-  scene: [],
+  scene: [TitleScene],
   plugins: {
     global: [
       {
@@ -38,7 +38,6 @@ const phaser_config = {
 }
 
 window.addEventListener('load', () => {
-
   const game = new Phaser.Game(phaser_config)
   // TODO: figure out prolific/mturk/elsewhere here (URL parsing)
   // Remember that localStorage *only stores strings*
@@ -57,9 +56,7 @@ window.addEventListener('load', () => {
   // rotation or clamp, default to clamp
   let manipulation = url_params.get('manipulation') || 'clamp'
   if (!['rotation', 'clamp'].includes(manipulation)) {
-
     console.error('Manipulation not found.')
-
   }
   let ua_res = new UAParser().getResult()
   let user_config = {
@@ -87,17 +84,14 @@ window.addEventListener('load', () => {
   game.user_config = user_config // patch in to pass into game
   // set up for user
   localStorage.setItem('conscious-clamp', 1)
-
 })
 
 // once the data is successfully sent, null this out
 // need to log this too
 export function onBeforeUnload(event) {
-
   // https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event
   event.preventDefault()
   event.returnValue = ''
   return 'experiment not done yet.'
-
 }
 !DEBUG && window.addEventListener('beforeunload', onBeforeUnload)
