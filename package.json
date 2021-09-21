@@ -19,7 +19,7 @@
     "devDependencies": {
         "esbuild": "^0.12.25",
         "eslint": "^7.32.0",
-        "phaser": "^3.55.2",
+        "phaser": "aforren1/phaser#1665b3f",
         "phaser3-rex-plugins": "^1.1.59",
         "ua-parser-js": "^0.7.28"
     }

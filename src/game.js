@@ -1,4 +1,4 @@
-import Phaser from './phaser-custom'
+import Phaser from 'phaser'
 import TitleScene from './scenes/titleScene'
 // import 'devtools-detect'
 import UAParser from 'ua-parser-js'
