@@ -1,12 +1,13 @@
 import Phaser from 'phaser'
 import TitleScene from './scenes/titleScene'
+import MainScene from './scenes/mainScene'
 // import 'devtools-detect'
 import UAParser from 'ua-parser-js'
 
 import BBCodeTextPlugin from 'phaser3-rex-plugins/plugins/bbcodetext-plugin.js'
 import TextTypingPlugin from 'phaser3-rex-plugins/plugins/texttyping-plugin.js'
 
-let small_dim = window.screen.height
+let small_dim = window.screen.height // could fix to 1000px, but this way things will look crisper
 const phaser_config = {
   type: Phaser.AUTO,
   backgroundColor: '#000000',
@@ -20,7 +21,7 @@ const phaser_config = {
   audio: {
     noAudio: true
   },
-  scene: [TitleScene],
+  scene: [TitleScene, MainScene],
   plugins: {
     global: [
       {

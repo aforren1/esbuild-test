@@ -1,5 +1,8 @@
 import { median } from '../utils/medians'
 
+// Do note that this ignores valid fractional refresh rates
+// (e.g. my lab monitor reports 74.89 Hz, not 75), so we shouldn't rely on this
+// for actual timing, only estimates (is it even worth guessing, then?)
 const common_refresh_rates = [30, 60, 72, 75, 85, 90, 100, 120, 144, 240]
 
 export default class TitleScene extends Phaser.Scene {
@@ -22,15 +25,8 @@ export default class TitleScene extends Phaser.Scene {
     this.i = 0
 
     let cb = (side) => {
-      let dts = this.frame_times.map((ele, idx, arr) => ele - arr[idx - 1]).slice(1)
-      let guess_rate = 1000 / median(dts)
-      let nearest_rate = common_refresh_rates.sort((a, b) => Math.abs(guess_rate - a) - Math.abs(guess_rate - b))[0]
-      console.log(this.game.loop.actualFps)
-      console.log(`median: ${guess_rate}, nearest: ${nearest_rate}`)
       left.disableInteractive()
       right.disableInteractive()
-      this.game.user_config['hand'] = side
-      console.log(side)
       this.scale.startFullscreen()
       this.tweens.addCounter({
         from: 255,
@@ -41,6 +37,19 @@ export default class TitleScene extends Phaser.Scene {
           this.cameras.main.setAlpha(v / 255)
         },
         onComplete: () => {
+          // grab frame times now, so we'll have at least ~2.5 sec of data
+          let dts = this.frame_times.map((ele, idx, arr) => ele - arr[idx - 1]).slice(1)
+          let est_rate = 1000 / median(dts)
+          let nearest_rate = common_refresh_rates.sort((a, b) => Math.abs(est_rate - a) - Math.abs(est_rate - b))[0]
+          if (!isFinite(est_rate)) {
+            console.warn('Not enough time to guess a refresh rate, defaulting to 60 Hz.')
+            est_rate = 60
+            nearest_rate = 60
+          }
+          console.log(`median: ${est_rate}, nearest: ${nearest_rate}`)
+          this.game.user_config['hand'] = side
+          this.game.user_config['refresh_rate_est'] = est_rate
+          this.game.user_config['refresh_rate_guess'] = nearest_rate
           // TODO: https://docs.google.com/document/d/17pvFMFqtAIx0ZA6zMZRU_A2-VnjhNX9QlN1Cgy-3Wdg/edit
           this.input.mouse.requestPointerLock()
           this.scene.start('MainScene')
@@ -62,7 +71,7 @@ export default class TitleScene extends Phaser.Scene {
       }).
       setOrigin(0.5, 0.5).
       setInteractive().
-      once('pointerdown', (ptr) => {
+      once('pointerdown', () => {
         cb('left')
       })
     let right = this.add.
@@ -77,11 +86,16 @@ export default class TitleScene extends Phaser.Scene {
       }).
       setOrigin(0.5, 0.5).
       setInteractive().
-      once('pointerdown', (ptr) => {
+      once('pointerdown', () => {
         cb('right')
       })
   }
   update() {
+    // this.game.loop.now should be rAF timestamp, if using my fork
+    // otherwise it's a timestamp taken immediately after entering
+    // the rAF callback, which introduces delay and jitter (sometimes up several ms in both cases),
+    // and is lower resolution depending on the Spectre/Meltdown mitigations
+    // in place on the particular browser
     this.frame_times[this.i] = this.game.loop.now
     this.i++
     this.i %= 200
