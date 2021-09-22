@@ -30,7 +30,7 @@ export default function generateTrials(repeats, is_debug = false) {
 
   let reps = is_debug ? 1 : 5
   let out = []
-  out.push({ trial_type: 'instruct_basic' })
+  out.push({ trial_type: 'instruct_basic' }) // reach + q
   for (let i = 0; i < reps; i++) {
     out.push({
       trial_type: 'practice_basic',
@@ -38,17 +38,6 @@ export default function generateTrials(repeats, is_debug = false) {
       is_masked: false,
       is_clamped: false,
       clamp_angle: 0
-    })
-  }
-
-  out.push({ trial_type: 'instruct_questions' })
-  for (let i = 0; i < reps; i++) {
-    out.push({
-      trial_type: 'practice_questions',
-      ask_questions: true,
-      is_clamped: false,
-      clamp_angle: 0,
-      is_masked: false
     })
   }
 

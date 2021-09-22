@@ -202,9 +202,9 @@ export default class MainScene extends Phaser.Scene {
     // examples
     this.examples = {
       // go + feedback
-      basic: new BasicExample(this, 0, 100, true).setVisible(false),
-      mask: null,
-      probe: null
+      basic: new BasicExample(this, 0, 100, true, false).setVisible(false),
+      mask: new BasicExample(this, 0, 100, true, true).setVisible(false),
+      probe: new BasicExample(this, 0, 100, true, true).setVisible(false)
     }
 
     // start the mouse at offset
