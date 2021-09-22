@@ -34,7 +34,7 @@ export default function generateTrials(repeats, is_debug = false) {
   for (let i = 0; i < reps; i++) {
     out.push({
       trial_type: 'practice_basic',
-      ask_questions: false,
+      ask_questions: true,
       is_masked: false,
       is_clamped: false,
       clamp_angle: 0

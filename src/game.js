@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import TitleScene from './scenes/titleScene'
 import MainScene from './scenes/mainScene'
+import EndScene from './scenes/endScene'
 // import 'devtools-detect'
 import UAParser from 'ua-parser-js'
 
@@ -21,7 +22,7 @@ const phaser_config = {
   audio: {
     noAudio: true
   },
-  scene: [TitleScene, MainScene],
+  scene: [TitleScene, MainScene, EndScene],
   plugins: {
     global: [
       {

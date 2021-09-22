@@ -11,8 +11,9 @@ import { Staircase } from '../utils/staircase'
 
 const WHITE = 0xffffff
 const GREEN = 0x39ff14 // actually move to the target
+const RED = 0xff0000
 const GRAY = 0x666666
-const DARKGRAY = 0x262626
+const DARKGRAY = 0x444444
 const TARGET_SIZE_RADIUS = 15
 const CURSOR_SIZE_RADIUS = 5
 const CENTER_SIZE_RADIUS = 15
@@ -71,9 +72,8 @@ export default class MainScene extends Phaser.Scene {
     // these line up with trial_type
     this.all_data = {
       practice_basic: [], // practice reaching with vis feedback
-      baseline: [],
+      practice_mask: [],
       probe: [],
-      post: [],
       checks: {} // attention checks (filled in by questions)
     }
   }
@@ -114,13 +114,12 @@ export default class MainScene extends Phaser.Scene {
       this.trials = generateTrials(40, false)
       this.typing_speed = 50
     }
-    console.log(this.trials)
-    this.staircase = new Staircase(1, 6, 1) // min of 1 frame, max of 6 frames (probably 100ms on 60hz machines?), steps of 1 frame
+    this.staircase = new Staircase(1, 12, 1) // min of 1 frame, max of 10 frames (probably 166ms on 60hz machines?), steps of 1 frame
 
     // user cursor
-    this.user_cursor = this.add.circle(CURSOR_RESTORE_POINT, CURSOR_RESTORE_POINT, CURSOR_SIZE_RADIUS, DARKGRAY) // controlled by user (potentially with clamp/rot?)
-    this.fake_cursor = this.add.circle(0, 0, CURSOR_SIZE_RADIUS, WHITE).setVisible(false) // animated by program
-    this.dbg_cursor = this.add.circle(0, 0, CURSOR_SIZE_RADIUS, WHITE, 0.2).setVisible(this.is_debug) // "true" cursor pos without clamp/rot, only in debug mode
+    this.user_cursor = this.add.circle(CURSOR_RESTORE_POINT, CURSOR_RESTORE_POINT, CURSOR_SIZE_RADIUS, DARKGRAY) // controlled by user (gray to reduce contrast)
+    this.fake_cursor = this.add.circle(0, 0, CURSOR_SIZE_RADIUS, DARKGRAY).setVisible(false) // animated by program
+    this.dbg_cursor = this.add.circle(0, 0, CURSOR_SIZE_RADIUS, RED, 1).setVisible(false && this.is_debug) // "true" cursor pos without clamp/rot, only in debug mode
 
     // center
     this.add.circle(0, 0, 15, WHITE)
@@ -131,21 +130,6 @@ export default class MainScene extends Phaser.Scene {
     let y = TARGET_DISTANCE * Math.sin(radians)
     this.target = this.add.circle(x, y, TARGET_SIZE_RADIUS, GRAY)
 
-    // other warnings
-    this.other_warns = this.add.
-      rexBBCodeText(0, 0, '', {
-        fontFamily: 'Verdana',
-        fontStyle: 'bold',
-        fontSize: 50,
-        color: '#ffffff',
-        align: 'center',
-        stroke: '#444444',
-        backgroundColor: '#111111',
-        strokeThickness: 4
-      }).
-      setOrigin(0.5, 0.5).
-      setVisible(false)
-
     this.q1 = this.add.text(0, hd2 / 3, `Which side did the cursor go toward,\n left (${rk['side']['left']}) or right (${rk['side']['right']})?`, {
       fontFamily: 'Verdana',
       fontStyle: 'bold',
@@ -155,7 +139,7 @@ export default class MainScene extends Phaser.Scene {
       stroke: '#444444',
       strokeThickness: 4
     }).
-      setOrigin(0.5, 0.5)
+      setOrigin(0.5, 0.5).setVisible(false)
 
     // big fullscreen quad in front of game, but behind text instructions
     this.darkener = this.add.rectangle(0, 0, height, height, 0x000000).setAlpha(1)
@@ -170,16 +154,31 @@ export default class MainScene extends Phaser.Scene {
       Math.PI + Math.PI / 3,
       Math.PI * 2 - Math.PI / 3,
       200,
-      TARGET_SIZE_RADIUS * 2 + 5,
-      TARGET_DISTANCE * 2 - 5
+      CENTER_SIZE_RADIUS * 2 + 5,
+      TARGET_DISTANCE * 2 - TARGET_SIZE_RADIUS * 2
     )
 
     let mask = this.add.polygon(0, 0, data, 0xffffff).setVisible(false).setDisplayOrigin(0, 0)
     this.noise.mask = new Phaser.Display.Masks.BitmapMask(this, mask)
 
+    // other warnings
+    this.other_warns = this.add.
+      rexBBCodeText(0, 0, '', {
+        fontFamily: 'Verdana',
+        fontStyle: 'bold',
+        fontSize: 50,
+        color: '#ffffff',
+        align: 'center',
+        stroke: '#444444',
+        backgroundColor: '#000000',
+        strokeThickness: 4
+      }).
+      setOrigin(0.5, 0.5).
+      setVisible(false)
+
     this.instructions = TypingText(this, /* half width */-400, -hd2 + 50, '', {
       fontFamily: 'Verdana',
-      fontSize: 30,
+      fontSize: 26,
       wrap: {
         mode: 'word',
         width: 800
@@ -202,10 +201,20 @@ export default class MainScene extends Phaser.Scene {
     // examples
     this.examples = {
       // go + feedback
-      basic: new BasicExample(this, 0, 100, true, false).setVisible(false),
-      mask: new BasicExample(this, 0, 100, true, true).setVisible(false),
-      probe: new BasicExample(this, 0, 100, true, true).setVisible(false)
+      basic: new BasicExample(this, 0, 200, true, false, rk['side']['right']).setVisible(false),
+      mask: new BasicExample(this, 0, 200, true, true, rk['side']['right']).setVisible(false)
     }
+
+    // question responses
+    this.resp_queue = []
+    this.rt_ref = 0 //
+    this.input.keyboard.on(`keydown-${rk['side']['left']}`, (evt) => {
+      this.resp_queue.push({side: 'l', rt: evt.timeStamp - this.rt_ref})
+    })
+
+    this.input.keyboard.on(`keydown-${rk['side']['right']}`, (evt) => {
+      this.resp_queue.push({side: 'r', rt: evt.timeStamp - this.rt_ref})
+    })
 
     // start the mouse at offset
     this.raw_x = CURSOR_RESTORE_POINT
@@ -245,28 +254,7 @@ export default class MainScene extends Phaser.Scene {
         let curs_x = this.raw_x
         let curs_y = this.raw_y
         this.dbg_cursor.setPosition(curs_x, curs_y)
-        let cur_trial = this.current_trial
 
-        // turn off cursor ASAP
-        if (this.state === states.MOVING && !cur_trial.go && extent >= MOVE_THRESHOLD) {
-          this.fake_cursor.visible = false
-        }
-
-        if (this.state === states.MOVING && cur_trial.pos === 'probe') {
-          let rot = cur_trial.rotation_angle
-          let cond = this.game.user_config.manipulation
-          if (cond === 'rotation') {
-            cursor_angle += rot
-          } else if (cond === 'clamp') {
-            cursor_angle = cur_trial.target_angle + rot
-          } else {
-            console.error('Unknown manipulation.')
-          }
-          let rad = Phaser.Math.DegToRad(cursor_angle)
-          // let temp = Phaser.Math.Rotate({ x: this.raw_x, y: this.raw_y }, Phaser.Math.DegToRad(rot))
-          curs_x = extent * Math.cos(rad)
-          curs_y = extent * Math.sin(rad)
-        }
         this.cursor_angle = cursor_angle
         this.user_cursor.x = curs_x
         this.user_cursor.y = curs_y
@@ -283,33 +271,18 @@ export default class MainScene extends Phaser.Scene {
             cursor_extent: extent,
             cursor_angle: cursor_angle
           })
-        } else if (this.state === states.POSTTRIAL) {
-          this.post_data.push({
-            callback_time: time,
-            evt_time: ptr.moveTime,
-            raw_x: this.raw_x,
-            raw_y: this.raw_y,
-            cursor_x: curs_x,
-            cursor_y: curs_y,
-            cursor_extent: extent,
-            cursor_angle: cursor_angle
-          })
         }
       }
     })
     // initial instructions (move straight through target)
     instruct_txts['instruct_basic'] =
-      'You will see one target.\n\nHold your mouse in the circle at the center of the screen to start a trial.\n\nWhen the target turns [color=#00ff00]green[/color], move your mouse straight through it. The target will turn [color=#777777]gray[/color] when you have moved far enough.\n\nAlways try to make [b][color=yellow]straight[/color][/b] mouse movements.'
-
-    instruct_txts[
-      'instruct_questions'
-    ] = `After the reach, we will ask you a question:\n\nWhich side of the target do you think the cursor went toward, left (press the [b][color=yellow]${rk['side']['left']}[/color][/b] key), or right (press the [b][color=yellow]${rk['side']['right']}[/color][/b] key)?\n\nWe'll do a few trials to practice. Remember to try to make [color=yellow]straight[/color][/b] mouse movements.`
+      `You will see one target.\n\nHold your mouse in the circle at the center of the screen to start a trial.\n\nWhen the target turns [color=#00ff00]green[/color], move your mouse straight through it. The target will turn [color=#777777]gray[/color] when you have moved far enough.\n\nAlways try to make [b][color=yellow]straight[/color][/b] mouse movements.\n\nAfter each reach, we will ask you a question:\n\n[size=32]Which side of the target do you think the cursor went toward, left (press the [b][color=yellow]${rk['side']['left']}[/color][/b] key), or right (press the [b][color=yellow]${rk['side']['right']}[/color][/b] key)?[/size]\n\nFor example, see below: the cursor goes to the right of the target, so we press the [b][color=yellow]${rk['side']['right']}[/color][/b] key.`
 
     instruct_txts['instruct_mask'] =
       'In this section, the cursor will be [color=yellow]hidden[/color] by an image at the beginning and end of the movement. The image will be temporarily removed partway through the movement, and you will be able to see the cursor then.\n\nWe will ask you to answer the same question as before:\n\nWhich side of the target do you think the cursor went toward?\n\nRemember to try to make [color=yellow]straight[/color][/b] mouse movements.'
 
     instruct_txts['instruct_probe'] =
-      'Great job! We\'ll continue these trials until the end.\n\nThe amount of time the cursor is [color=yellow]hidden[/color] may vary over time, but always do your best to make straight mouse movements and answer the question as best you can.'
+      'Great job! We\'ll continue these trials until the end.\n\nThe amount of time the cursor is [color=yellow]hidden[/color] may vary over time, but always do your best to make [color=yellow]straight mouse movements to the target[/color] and answer the question as best you can.'
   } // end create
 
   update() {
@@ -319,6 +292,7 @@ export default class MainScene extends Phaser.Scene {
         this.entering = false
         // show the right instruction text, wait until typing complete
         // and response made
+        this.noise.visible = false
         this.instructions.visible = true
         this.darkener.visible = true
         let tt = this.current_trial.trial_type
@@ -326,12 +300,17 @@ export default class MainScene extends Phaser.Scene {
         if (tt === 'instruct_basic') {
           this.examples.basic.visible = true
           this.examples.basic.play()
+        } else if (tt === 'instruct_mask' || tt === 'instruct_probe') {
+          this.examples.mask.visible = true
+          this.examples.mask.play()
         }
         this.instructions.typing.once('complete', () => {
           this.start_txt.visible = true
           this.input.once('pointerdown', () => {
             this.examples.basic.stop()
             this.examples.basic.visible = false
+            this.examples.mask.stop()
+            this.examples.mask.visible = false
             this.next_trial()
             this.darkener.visible = false
             this.instructions.visible = false
@@ -348,6 +327,8 @@ export default class MainScene extends Phaser.Scene {
         this.hold_t = this.hold_val
         this.user_cursor.visible = true
         this.t_ref = window.performance.now()
+        // draw mask, if needed
+        this.noise.visible = this.current_trial.is_masked
         if (this.is_debug) {
           let current_trial = this.current_trial
           let txt = current_trial['trial_type']
@@ -367,18 +348,23 @@ export default class MainScene extends Phaser.Scene {
           this.user_cursor.y = 0
           this.state = states.MOVING
           this.trial_data = []
-          this.post_data = []
         }
       } else {
         this.hold_t = this.hold_val
       }
       break
     case states.MOVING:
+      // for non-probe trials, they control the cursor
+      // for probe trials, there's a fixed cursor animation
+      // that runs completely, regardless of what they do with the cursor
+      // only thing they control on probe is initiation time
       let current_trial = this.current_trial
       if (this.entering) {
         this.entering = false
-        this.moved_on_no = false
         this.reference_time = this.game.loop.now
+        this.last_frame_time = this.game.loop.now
+        this.dropped_frame_count = 0
+        this.dts = []
         // every trial starts at 0, 0
         this.trial_data.splice(0, 0, {
           callback_time: this.reference_time,
@@ -391,82 +377,125 @@ export default class MainScene extends Phaser.Scene {
           cursor_angle: 0
         })
         this.target.fillColor = GREEN
-        this.user_cursor.visible = current_trial.feedback_on
-        if (!current_trial.go) {
-          this.user_cursor.visible = false
-          this.fake_cursor.visible = current_trial.feedback_on
-          this.fake_cursor.setPosition(0, 0)
-          this.time.delayedCall(100, () => {
-            this.target.fillColor = MAGENTA
-          })
-          let radians = Phaser.Math.DegToRad(current_trial.target_angle + current_trial.rotation_angle)
-          let radius = current_trial.target_distance + TARGET_SIZE_RADIUS
-          let x = radius * Math.cos(radians)
-          let y = radius * Math.sin(radians)
-          let rts = this.rts
-          let movets = this.movets
-          let delay = rts.length < 5 ? median(rts.slice(-5)) : 250
-          let dur = movets.length < 5 ? median(movets.slice(-5)) : 200
-          this.tweens.timeline({
-            tweens: [
-              {
-                // TODO: median RT + jitter?
-                delay: delay,
-                targets: this.fake_cursor,
-                x: x,
-                y: y,
-                ease: 'Power2',
-                // TODO: calc from how long it takes to get beyond
-                duration: dur
-              }
-            ]
+        if (current_trial.is_masked) {
+          this.mask_twn = this.tweens.add({
+            targets: this.noise,
+            alpha: 1,
+            paused: true,
+            onStart: () => {
+              this.noise.visible = false
+            },
+            onComplete: () => {
+              this.noise.visible = true
+            },
+            duration: this.staircase.next(),
+            useFrames: true
           })
         }
+        if (current_trial.is_clamped) {
+          this.user_cursor.visible = false
+          // get polar representation of clamp
+          let rad = Phaser.Math.DegToRad(current_trial.clamp_angle + TARGET_REF_ANGLE)
+          let x = TARGET_DISTANCE * Math.cos(rad)
+          let y = TARGET_DISTANCE * Math.sin(rad)
+          this.fake_cursor.visible = true
+          this.done_curs = false
+          this.curs_twn = this.tweens.add({
+            targets: this.fake_cursor,
+            x: x,
+            y: y,
+            duration: 100,
+            paused: true,
+            onUpdate: () => {
+              let fake_extent = Math.sqrt(Math.pow(this.fake_cursor.x, 2) + Math.pow(this.fake_cursor.y, 2))
+              if (fake_extent >= 0.95 * TARGET_DISTANCE) {
+                this.fake_cursor.visible = false
+              }
+            },
+            onComplete: () =>{
+              this.fake_cursor.setPosition(0, 0)
+            }
+          })
+          this.curs_twn.once('complete', () => {
+            this.done_curs = true
+          })
+        }
+      } else { // second iter ++
+        let est_dt = 1 / this.game.user_config.refresh_rate_guess * 1000
+        let this_dt = this.game.loop.now - this.last_frame_time
+        this.dropped_frame_count += this_dt > 1.5 * est_dt
+        this.dts.push(this_dt)
+        this.last_frame_time = this.game.loop.now
       }
-      // magic number to try and catch movements during reaches
-      if (!current_trial.go && this.extent >= MOVE_THRESHOLD) {
-        this.fake_cursor.visible = false
+      let real_extent = Math.sqrt(Math.pow(this.user_cursor.x, 2) + Math.pow(this.user_cursor.y, 2))
+
+      if (current_trial.is_masked && real_extent >= 0.05 * TARGET_DISTANCE) {
+        this.mask_twn.play()
+        if (current_trial.is_clamped) {
+          this.curs_twn.play()
+        }
       }
-      let fake_extent = Math.sqrt(Math.pow(this.fake_cursor.x, 2) + Math.pow(this.fake_cursor.y, 2))
-      if (
-        current_trial.go && this.extent >= current_trial.target_distance ||
-          !current_trial.go && fake_extent >= current_trial.target_distance
-      ) {
+      if (current_trial.is_clamped && this.done_curs || !current_trial.is_clamped && real_extent >= 0.95 * TARGET_DISTANCE) {
         this.target.fillColor = GRAY
-        this.state = states.POSTTRIAL
-        this.fake_cursor.visible = false
         this.user_cursor.visible = false
+        if (current_trial.ask_questions) {
+          this.state = states.QUESTIONS
+        } else { // jumping straight to the posttrial, feed in some junk
+          this.resp_queue.splice(0, 0, {side: 'x', rt: 0})
+          this.state = states.POSTTRIAL
+        }
+      }
+      break
+    case states.QUESTIONS:
+      if (this.entering) {
+        this.entering = false
+        this.rt_ref = this.game.loop.now
+        this.resp_queue = [] // empty queue
+        this.q1.visible = true
+      }
+      if (this.resp_queue.length > 0) {
+        this.state = states.POSTTRIAL
+        this.q1.visible = false
       }
       break
     case states.POSTTRIAL:
       if (this.entering) {
         this.entering = false
         let current_trial = this.current_trial
+        let correct = true
+        let resp = this.resp_queue[0]
+        let cur_stair = this.staircase.next()
+        if (current_trial.is_clamped) {
+          // we can know which side easily b/c it's clamped
+          // only update staircase when clamped
+          correct = current_trial.clamp_angle < 0 && resp.side === 'l' ||
+                    current_trial.clamp_angle > 0 && resp.side === 'r'
+          this.staircase.update(correct)
+          console.log(`frames: ${cur_stair}, correct: ${correct}`)
+        }
         // deal with trial data
-        this.moved_on_no = this.trial_data.some((x) => x.cursor_extent >= MOVE_THRESHOLD)
         let trial_data = {
           movement_data: this.trial_data,
-          // post_data: this.post_data,
           ref_time: this.reference_time,
-          moved_on_no: this.moved_on_no,
           trial_number: this.trial_counter++,
           target_size_radius: TARGET_SIZE_RADIUS, // fixed above
           cursor_size_radius: CURSOR_SIZE_RADIUS,
           iti: this.inter_trial_interval, // amount of time between cursor appear & teleport
-          hold_time: this.hold_val
+          hold_time: this.hold_val,
+          which_side: resp,
+          n_frames: cur_stair, // get current stair value
+          correct: correct,
+          dropped_frame_count: this.dropped_frame_count
         }
         let combo_data = merge_data(current_trial, trial_data)
-        // console.log(combo_data)
+        console.log(this.dts)
+        console.log(combo_data.n_frames)
         let delay = 1200
         let fbdelay = 0
         // feedback about movement angle (if non-imagery)
         let first_element = trial_data.movement_data[1]
-        // let last_element = trial_data.movement_data[trial_data.movement_data.length - 1]
-        let last_element = trial_data.movement_data.find((x) => {
-          return x.cursor_extent >= current_trial.target_distance
-        })
+        let last_element = trial_data.movement_data[trial_data.movement_data.length - 1]
         let target_angle = current_trial.target_angle
-        let go = current_trial.go
 
         let reach_angles = this.trial_data.filter((a) => a.cursor_extent > 15).map((a) => a.cursor_angle)
         let end_angle = reach_angles.slice(-1)
@@ -477,35 +506,28 @@ export default class MainScene extends Phaser.Scene {
           reaction_time = first_element.evt_time - this.reference_time
           reach_time = last_element.evt_time - first_element.evt_time
         }
-        if (go && !(reaction_time === null)) {
+        if (!(reaction_time === null)) {
           this.rts.push(reaction_time)
           this.movets.push(reach_time)
         }
         let punished = false
         let punish_delay = 3000
         let punish_flags = 0
-        if (!go && this.moved_on_no) {
-          punish_flags |= Err.go_on_no
-          if (!punished) {
-            punished = true
-            this.other_warns.text = '[b]Do not move when the\ntarget is [color=magenta]magenta[/color].'
-          }
-        }
-        if (go && Math.abs(signedAngleDeg(last_element.cursor_angle, target_angle)) >= 60) {
+        if (Math.abs(signedAngleDeg(last_element.cursor_angle, target_angle)) >= 30) {
           punish_flags |= Err.reached_away
           if (!punished) {
             punished = true
             this.other_warns.text = '[b]Make reaches toward\nthe [color=#00ff00]green[/color] target.[/b]'
           }
         }
-        if (go && reaction_time >= 800) {
+        if (reaction_time >= 800) {
           punish_flags |= Err.late_start
           if (!punished) {
             punished = true
             this.other_warns.text = '[b]Please start the\nreach sooner.[/b]'
           }
         }
-        if (go && reach_time >= 400) {
+        if (reach_time >= 400) {
           // slow reach
           punish_flags |= Err.slow_reach
           if (!punished) {
@@ -527,71 +549,29 @@ export default class MainScene extends Phaser.Scene {
           this.time.delayedCall(punish_delay, () => {
             this.other_warns.visible = false
           })
-        } else if (current_trial.feedback_on) {
-          let radius = current_trial.target_distance
-          if (!current_trial.go) {
-            // easy computation, you know the target radius and the animation angle
-            let radians = Phaser.Math.DegToRad(current_trial.target_angle + current_trial.rotation_angle)
-            this.feedback_cursor.x = radius * Math.cos(radians)
-            this.feedback_cursor.y = radius * Math.sin(radians)
-          } else {
-            // find first sample beyond radius
-            let lastsample = trial_data.movement_data.find((x) => {
-              return x.cursor_extent >= current_trial.target_distance
-            })
-            // let lastsample = trial_data.movement_data[trial_data.movement_data.length - 1]
-            let radians = Phaser.Math.DegToRad(lastsample.cursor_angle)
-            this.feedback_cursor.x = radius * Math.cos(radians)
-            this.feedback_cursor.y = radius * Math.sin(radians)
-          }
-          this.feedback_cursor.visible = true
-          fbdelay = 50
         }
         combo_data['delay_time'] = delay
         combo_data['reaction_time'] = reaction_time
         combo_data['reach_time'] = reach_time
 
         this.time.delayedCall(fbdelay, () => {
-          this.feedback_cursor.visible = false
           this.time.delayedCall(delay, () => {
-            // feedback re: moving back toward center and late no here
-            // (only if no previous errors-- would be annoying to be doubly punished)
-            let post_delay = 0
-            // calc whether moved on stop signal
-            let punished2 = false
-            if (!go && this.post_data.some((x) => x.cursor_extent >= MOVE_THRESHOLD)) {
-              punish_flags |= Err.go_on_no_post
-              if (!punished && !punished2) {
-                punished2 = true
-                this.other_warns.text = '[b]Do not move when the\ntarget is [color=magenta]magenta[/color].'
+            combo_data['any_punishment'] = punished
+            combo_data['punish_types'] = punish_flags
+            // console.log(combo_data)
+            this.all_data[current_trial.trial_type].push(combo_data)
+            this.tmp_counter++
+            this.raw_x = this.raw_y = this.user_cursor.x = this.user_cursor.y = CURSOR_RESTORE_POINT
+            this.user_cursor.visible = true
+            this.tweens.add({
+              targets: this.user_cursor,
+              scale: { from: 0, to: 1 },
+              ease: 'Elastic',
+              easeParams: [5, 0.5],
+              duration: 800,
+              onComplete: () => {
+                this.next_trial()
               }
-            }
-
-            if (punished2) {
-              post_delay += punish_delay
-              this.other_warns.visible = true
-              this.time.delayedCall(punish_delay, () => {
-                this.other_warns.visible = false
-              })
-            }
-            this.time.delayedCall(post_delay, () => {
-              combo_data['any_punishment'] = punished || punished2
-              combo_data['punish_types'] = punish_flags
-              // console.log(combo_data)
-              this.all_data[current_trial.trial_type].push(combo_data)
-              this.tmp_counter++
-              this.raw_x = this.raw_y = this.user_cursor.x = this.user_cursor.y = CURSOR_RESTORE_POINT
-              this.user_cursor.visible = true
-              this.tweens.add({
-                targets: this.user_cursor,
-                scale: { from: 0, to: 1 },
-                ease: 'Elastic',
-                easeParams: [5, 0.5],
-                duration: 800,
-                onComplete: () => {
-                  this.next_trial()
-                }
-              })
             })
           })
         })
@@ -638,7 +618,7 @@ export default class MainScene extends Phaser.Scene {
     }
     this.current_trial = this.trials.shift()
     let cur_trial = this.current_trial
-    let tt = 'foo'
+    let tt = ''
     if (cur_trial !== undefined) {
       tt = cur_trial.trial_type
     }
@@ -648,9 +628,7 @@ export default class MainScene extends Phaser.Scene {
       this.state = states.INSTRUCT
     } else if (
       tt.startsWith('practice') ||
-      tt.startsWith('baseline') ||
-      tt.startsWith('probe') ||
-      tt.startsWith('post')
+      tt.startsWith('probe')
     ) {
       this.state = states.PRETRIAL
     } else {
