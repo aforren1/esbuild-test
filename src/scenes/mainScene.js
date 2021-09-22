@@ -17,10 +17,10 @@ const TARGET_SIZE_RADIUS = 15
 const CURSOR_SIZE_RADIUS = 5
 const CENTER_SIZE_RADIUS = 15
 const MOVE_THRESHOLD = 4
-const TARGET_DISTANCE = 550 // *hopefully* they have 550px available?
+const TARGET_DISTANCE = 300 // *hopefully* they have 300px available?
 const TARGET_REF_ANGLE = 270 // degrees, and should be pointed straight up
 const CURSOR_RESTORE_POINT = 30 //
-const MOVE_SCALE = 0.5 // factor to combat pointer acceleration
+const MOVE_SCALE = 0.75 // factor to combat pointer acceleration
 
 // generate the noise texture (512x512 so we're pretty sure it'll fit any screen, esp once
 // it gets scaled up to 3x3 pixel blocks)
@@ -146,7 +146,7 @@ export default class MainScene extends Phaser.Scene {
       setOrigin(0.5, 0.5).
       setVisible(false)
 
-    this.q1 = this.add.text(0, hd2 / 2, `Which side did the cursor go toward,\n left (${rk['side']['left']}) or right (${rk['side']['right']})?`, {
+    this.q1 = this.add.text(0, hd2 / 3, `Which side did the cursor go toward,\n left (${rk['side']['left']}) or right (${rk['side']['right']})?`, {
       fontFamily: 'Verdana',
       fontStyle: 'bold',
       fontSize: 50,
@@ -203,9 +203,9 @@ export default class MainScene extends Phaser.Scene {
     this.examples = {
       // go + feedback
       basic: new BasicExample(this, 0, 100, true).setVisible(false),
-      mask: new BasicExample(this, 0, 100)
+      mask: null,
+      probe: null
     }
-    // this.examples['go_example'].play()
 
     // start the mouse at offset
     this.raw_x = CURSOR_RESTORE_POINT
@@ -216,7 +216,7 @@ export default class MainScene extends Phaser.Scene {
     this.input.on('pointerdown', () => {
       if (this.state !== states.END) {
         this.scale.startFullscreen()
-        this.time.delayedCall(400, () => {
+        this.time.delayedCall(300, () => {
           this.input.mouse.requestPointerLock()
         })
       }
